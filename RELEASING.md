@@ -10,11 +10,16 @@ You only need these once per Mac.
 |---|---|---|
 | Xcode Command Line Tools | `xcode-select -p` | `xcode-select --install` |
 | Developer ID Application certificate for **Sezer Iltekin (Z5693NZJLD)** in the login keychain | `security find-identity -v -p codesigning \| grep "Developer ID Application"` | Create it in the Apple Developer account (Certificates → Developer ID Application) and install it |
-| notarytool keychain profile `fortifill` (Apple ID + app-specific password for team Z5693NZJLD) | `xcrun notarytool history --keychain-profile fortifill` | `xcrun notarytool store-credentials fortifill --apple-id <apple-id> --team-id Z5693NZJLD` (create the app-specific password at account.apple.com → Sign-In and Security) |
+| notarytool keychain profile `notary` (Apple ID + app-specific password for team Z5693NZJLD) | `xcrun notarytool history --keychain-profile notary` | `xcrun notarytool store-credentials notary --apple-id <apple-id> --team-id Z5693NZJLD` (create the app-specific password at account.apple.com → Sign-In and Security) |
 | GitHub CLI logged in as `iltekin` | `gh auth status` | `gh auth login` |
 | Local clone of the tap | `ls ~/Developer/homebrew-tap` | `git clone https://github.com/iltekin/homebrew-tap.git ~/Developer/homebrew-tap` |
 
-To use a different signing identity or notary profile, set `SIGN_IDENTITY=...` or `NOTARY_PROFILE=...` when running `release.sh`.
+If your profile or signing identity has a different name, put it in a `.release.env` file at the repository root. It's ignored by git and loaded by `release.sh`:
+
+```bash
+NOTARY_PROFILE=my-profile-name
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+```
 
 ## Release checklist
 
@@ -42,7 +47,7 @@ This builds the universal app with the version baked into `Info.plist`, signs it
 It should end with `status: Accepted`, `The staple and validate action worked!` and `source=Notarized Developer ID`. If notarization fails, see the log:
 
 ```bash
-xcrun notarytool log <submission-id> --keychain-profile fortifill
+xcrun notarytool log <submission-id> --keychain-profile notary
 ```
 
 ### 3. Publish the GitHub release
