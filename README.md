@@ -85,16 +85,13 @@ swift scripts/make-icon.swift Resources/AppIcon.icns
 
 ## Releasing
 
+See **[RELEASING.md](RELEASING.md)** for the one-time setup and the full checklist: build, sign, notarize, publish the GitHub release, update the Homebrew cask and verify. In short:
+
 ```bash
-./release.sh 1.0.0
+./release.sh 1.0.1
+gh release create v1.0.1 build/Unplug-1.0.1.zip --title "Unplug 1.0.1" --notes "..."
+cp packaging/unplug.rb ~/Developer/homebrew-tap/Casks/unplug.rb   # then commit and push the tap
 ```
-
-This builds a universal app, signs it with the Developer ID certificate, notarizes and staples it, zips it, and writes `packaging/unplug.rb` with the right checksum. Then:
-
-1. Create a GitHub release tagged `v1.0.0` with the zip attached.
-2. Copy `packaging/unplug.rb` to `Casks/unplug.rb` in [iltekin/homebrew-tap](https://github.com/iltekin/homebrew-tap).
-
-Notarization uses the notarytool keychain profile named in `release.sh` (override with `NOTARY_PROFILE=...`).
 
 ## License
 
