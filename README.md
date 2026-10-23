@@ -94,7 +94,7 @@ This builds a universal app, signs it with the Developer ID certificate, notariz
 1. Create a GitHub release tagged `v1.0.0` with the zip attached.
 2. Copy `packaging/unplug.rb` to `Casks/unplug.rb` in [iltekin/homebrew-tap](https://github.com/iltekin/homebrew-tap).
 
-Notarization expects a notarytool keychain profile named `unplug-notary` (see `release.sh`).
+Notarization uses the notarytool keychain profile named in `release.sh` (override with `NOTARY_PROFILE=...`).
 
 ## License
 

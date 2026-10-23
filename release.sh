@@ -3,13 +3,13 @@
 # Kullanım: ./release.sh 1.0.0
 #
 # Bir kerelik kurulum: notarytool için Apple ID bilgilerini anahtar zincirine kaydet.
-#   xcrun notarytool store-credentials unplug-notary --apple-id <apple-id> --team-id Z5693NZJLD
+#   xcrun notarytool store-credentials fortifill --apple-id <apple-id> --team-id Z5693NZJLD
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="${1:?Kullanım: ./release.sh <sürüm>}"
 export SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Sezer Iltekin (Z5693NZJLD)}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-unplug-notary}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-fortifill}"
 
 ./build.sh "$VERSION"
 codesign --verify --deep --strict build/Unplug.app
