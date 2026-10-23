@@ -4,8 +4,8 @@ cask "unplug" do
 
   url "https://github.com/iltekin/unplug/releases/download/v#{version}/Unplug-#{version}.zip"
   name "Unplug"
-  desc "Turn displays on and off from the menu bar"
-  homepage "https://github.com/iltekin/unplug"
+  desc "Menu bar app to turn external displays off and on"
+  homepage "https://iltekin.github.io/unplug/"
 
   depends_on macos: ">= :ventura"
 
