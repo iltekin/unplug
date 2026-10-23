@@ -1,0 +1,18 @@
+cask "unplug" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/iltekin/unplug/releases/download/v#{version}/Unplug-#{version}.zip"
+  name "Unplug"
+  desc "Turn displays on and off from the menu bar"
+  homepage "https://github.com/iltekin/unplug"
+
+  depends_on macos: ">= :ventura"
+
+  app "Unplug.app"
+
+  uninstall quit:       "com.iltekin.Unplug",
+            login_item: "Unplug"
+
+  zap trash: "~/Library/Preferences/com.iltekin.Unplug.plist"
+end

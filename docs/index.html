@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unplug — turn external displays off from the menu bar</title>
+  <meta name="description" content="Unplug is a tiny, free and open-source macOS menu bar app that disconnects external displays in software. Like pulling the cable, without pulling the cable.">
+  <meta property="og:title" content="Unplug for macOS">
+  <meta property="og:description" content="Turn external displays off from the menu bar. Like pulling the cable, without pulling the cable.">
+  <meta property="og:image" content="https://iltekin.github.io/unplug/assets/icon.png">
+  <meta property="og:url" content="https://iltekin.github.io/unplug/">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-2: #eef2f7;
+      --text: #10141a;
+      --muted: #5b6573;
+      --line: #dfe4ec;
+      --accent: #1a73e8;
+      --accent-strong: #0b5cd6;
+      --accent-soft: #e4efff;
+      --green: #30c75b;
+      --switch-off: #c9ced6;
+      --menu: rgba(246, 247, 249, 0.92);
+      --menu-line: rgba(0, 0, 0, 0.08);
+      --monitor-frame: #1d2230;
+      --screen-on-a: #4fa3ff;
+      --screen-on-b: #0b5cd6;
+      --shadow: 0 20px 50px -20px rgba(16, 30, 60, 0.28);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0d1117;
+        --surface: #151b24;
+        --surface-2: #1b2330;
+        --text: #e9eef5;
+        --muted: #9aa5b4;
+        --line: #263041;
+        --accent: #4f9dff;
+        --accent-strong: #79b4ff;
+        --accent-soft: #15253d;
+        --switch-off: #4a5260;
+        --menu: rgba(38, 42, 50, 0.92);
+        --menu-line: rgba(255, 255, 255, 0.08);
+        --monitor-frame: #0a0d12;
+        --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0d1117;
+      --surface: #151b24;
+      --surface-2: #1b2330;
+      --text: #e9eef5;
+      --muted: #9aa5b4;
+      --line: #263041;
+      --accent: #4f9dff;
+      --accent-strong: #79b4ff;
+      --accent-soft: #15253d;
+      --switch-off: #4a5260;
+      --menu: rgba(38, 42, 50, 0.92);
+      --menu-line: rgba(255, 255, 255, 0.08);
+      --monitor-frame: #0a0d12;
+      --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    header.top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 0;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--text); }
+    .brand img { width: 28px; height: 28px; }
+    .brand:hover { text-decoration: none; }
+    nav.links { display: flex; gap: 22px; font-size: 15px; }
+    nav.links a { color: var(--muted); }
+    nav.links a:hover { color: var(--text); text-decoration: none; }
+
+    /* Hero */
+    .hero {
+      display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center;
+      padding: 56px 0 72px;
+    }
+    .hero > * { min-width: 0; }
+    .hero-icon { width: 96px; height: 96px; margin-bottom: 18px; filter: drop-shadow(0 10px 18px rgba(26, 115, 232, 0.35)); }
+    h1 {
+      font-size: clamp(36px, 5.2vw, 56px); line-height: 1.04; letter-spacing: -0.035em;
+      margin: 0 0 18px; font-weight: 750;
+    }
+    h1 .soft { color: var(--muted); font-weight: 650; white-space: nowrap; }
+    .lede { font-size: 19px; color: var(--muted); margin: 0 0 30px; max-width: 34ch; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 15px;
+      background: var(--accent); color: #fff; border: 0; cursor: pointer;
+      box-shadow: 0 8px 20px -10px rgba(26, 115, 232, 0.8);
+    }
+    .btn:hover { background: var(--accent-strong); text-decoration: none; }
+    .btn svg { width: 18px; height: 18px; }
+    .brew {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 8px 8px 16px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--line);
+      font-size: 14px; max-width: 100%;
+    }
+    .brew code { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brew .prompt { color: var(--muted); user-select: none; }
+    .copy {
+      flex: none; border: 0; background: var(--surface-2); color: var(--text);
+      border-radius: 8px; padding: 6px 10px; font: 600 13px/1 inherit; cursor: pointer;
+    }
+    .copy:hover { background: var(--accent-soft); color: var(--accent); }
+    .meta { margin-top: 16px; font-size: 14px; color: var(--muted); }
+
+    /* Demo */
+    .demo {
+      position: relative; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 22px; padding: 22px; box-shadow: var(--shadow);
+    }
+    .menubar {
+      display: flex; justify-content: flex-end; align-items: center; gap: 14px;
+      height: 28px; padding: 0 12px; margin: -6px -6px 0; border-radius: 10px;
+      background: var(--surface-2); font-size: 13px; color: var(--muted);
+    }
+    .menubar .item { display: flex; align-items: center; }
+    .menubar .item.active { background: var(--menu-line); border-radius: 5px; padding: 2px 6px; color: var(--text); }
+    .menubar svg { width: 18px; height: 14px; }
+    .menu {
+      position: relative; margin: 8px 0 0 auto; width: 250px;
+      background: var(--menu); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--menu-line); border-radius: 10px; padding: 6px 0;
+      box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.25);
+      font-size: 13px;
+    }
+    .menu .header { padding: 3px 14px; color: var(--muted); font-weight: 600; font-size: 12px; }
+    .menu .row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; }
+    .menu .row svg { width: 18px; height: 14px; color: var(--muted); flex: none; }
+    .menu .row span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .menu .sep { height: 1px; background: var(--menu-line); margin: 6px 0; }
+    .menu .plain { padding: 3px 14px; }
+
+    .switch {
+      position: relative; flex: none; width: 38px; height: 22px; border-radius: 11px;
+      background: var(--switch-off); border: 0; padding: 0; cursor: pointer;
+      transition: background .18s ease;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+      transition: transform .18s ease;
+    }
+    .switch[aria-checked="true"] { background: var(--green); }
+    .switch[aria-checked="true"]::after { transform: translateX(16px); }
+    .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .desk { flex-wrap: nowrap; max-width: 100%; display: flex; justify-content: center; align-items: flex-end; gap: 10px; margin-top: 22px; }
+    .monitor { display: flex; flex-direction: column; align-items: center; }
+    .monitor .screen {
+      position: relative; border: 7px solid var(--monitor-frame); border-radius: 10px;
+      background: linear-gradient(160deg, var(--screen-on-a), var(--screen-on-b));
+      display: grid; place-items: center; overflow: hidden;
+      transition: background .25s ease;
+    }
+    .monitor .screen::before {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(120% 80% at 20% 10%, rgba(255,255,255,.35), transparent 60%);
+      transition: opacity .25s ease;
+    }
+    .monitor .no-signal {
+      position: relative; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      color: #8a93a3; opacity: 0; transition: opacity .25s ease;
+    }
+    .monitor.off .screen { background: #05070a; }
+    .monitor.off .screen::before { opacity: 0; }
+    .monitor.off .no-signal { opacity: 1; }
+    .monitor .neck { width: 16px; height: 18px; background: var(--monitor-frame); }
+    .monitor .base { width: 64px; height: 7px; border-radius: 4px; background: var(--monitor-frame); }
+    .m-big .screen { width: 150px; height: 94px; }
+    .m-small .screen { width: 108px; height: 70px; }
+    .laptop .screen { width: 98px; height: 62px; border-radius: 8px 8px 0 0; border-width: 6px; }
+    .laptop .deck { width: 122px; height: 8px; border-radius: 0 0 8px 8px; background: var(--monitor-frame); }
+    .demo-hint { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+
+    /* Sections */
+    section { padding: 64px 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 32px; letter-spacing: -0.02em; margin: 0 0 10px; line-height: 1.2; }
+    .section-lede { color: var(--muted); margin: 0 0 36px; max-width: 60ch; font-size: 17px; }
+
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feature {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+    }
+    .feature .ico {
+      width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+      background: var(--accent-soft); color: var(--accent); margin-bottom: 14px;
+    }
+    .feature .ico svg { width: 20px; height: 20px; }
+    .feature h3 { margin: 0 0 6px; font-size: 17px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+    .step { position: relative; padding: 22px 22px 22px 64px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+    .step::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; left: 20px; top: 20px; width: 30px; height: 30px; border-radius: 50%;
+      background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 14px;
+    }
+    .step h3 { margin: 0 0 4px; font-size: 16px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+    .step code { font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; }
+
+    .faq { display: grid; gap: 10px; max-width: 760px; }
+    details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 20px; }
+    summary { cursor: pointer; padding: 16px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; line-height: 1; }
+    details[open] summary::after { content: "−"; }
+    details p { margin: 0 0 16px; color: var(--muted); }
+    details code { font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; }
+
+    .closing {
+      text-align: center; padding: 72px 20px;
+      background: radial-gradient(80% 120% at 50% 0%, var(--accent-soft), transparent 70%);
+    }
+    .closing img { width: 72px; height: 72px; }
+    .closing h2 { margin: 14px 0 8px; }
+    .closing p { color: var(--muted); margin: 0 0 26px; }
+    .closing .cta { justify-content: center; }
+
+    footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+    footer a { color: var(--muted); }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 32px; }
+      .features, .steps { grid-template-columns: 1fr; }
+      nav.links .hide-sm { display: none; }
+    }
+    @media (max-width: 560px) {
+      .m-big .screen { width: 132px; height: 82px; }
+      .m-small .screen { width: 100px; height: 66px; }
+      .laptop { display: none; }
+      .menu { width: 100%; }
+      .brew { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><img src="assets/icon.png" alt="">Unplug</a>
+      <nav class="links">
+        <a href="#features">Features</a>
+        <a class="hide-sm" href="#faq">FAQ</a>
+        <a href="https://github.com/iltekin/unplug">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <img class="hero-icon" src="assets/icon.png" alt="Unplug app icon" width="96" height="96">
+          <h1>Pull the plug.<br><span class="soft">Without the plug.</span></h1>
+          <p class="lede">A tiny, free menu bar app that turns your external displays off and on with a single switch.</p>
+          <div class="cta">
+            <a class="btn" href="https://github.com/iltekin/unplug/releases/latest">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+              Download for Mac
+            </a>
+            <div class="brew">
+              <code><span class="prompt">$ </span>brew install --cask iltekin/tap/unplug</code>
+              <button class="copy" type="button" data-copy="brew install --cask iltekin/tap/unplug">Copy</button>
+            </div>
+          </div>
+          <p class="meta">Free &amp; open source · macOS 13 or later · Apple Silicon &amp; Intel</p>
+        </div>
+
+        <div class="demo" aria-label="Interactive demo of the Unplug menu">
+          <div class="menubar" aria-hidden="true">
+            <span>Wi‑Fi</span>
+            <span class="item active">
+              <svg viewBox="0 0 36 28" fill="none" stroke="currentColor" stroke-width="3"><rect x="2" y="2" width="22" height="15" rx="3"/><path d="M13 17v5M8 23h10"/><rect x="18" y="9" width="16" height="11" rx="2.5" fill="var(--surface-2)"/><path d="M26 20v3.5M22.5 24h7"/></svg>
+            </span>
+            <span>Mon 9:41</span>
+          </div>
+          <div class="menu">
+            <div class="header">Displays</div>
+            <div class="row">
+              <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2"><rect x="1.5" y="1.5" width="21" height="13" rx="2"/><path d="M12 14.5v3M8 18.5h8"/></svg>
+              <span>27″ 4K Monitor</span>
+              <button class="switch" type="button" role="switch" aria-checked="true" data-monitor="big" aria-label="27 inch 4K Monitor"></button>
+            </div>
+            <div class="row">
+              <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2"><rect x="1.5" y="1.5" width="21" height="13" rx="2"/><path d="M12 14.5v3M8 18.5h8"/></svg>
+              <span>Portable Display</span>
+              <button class="switch" type="button" role="switch" aria-checked="true" data-monitor="small" aria-label="Portable Display"></button>
+            </div>
+            <div class="sep"></div>
+            <div class="plain">About</div>
+            <div class="plain">Quit</div>
+          </div>
+
+          <div class="desk" aria-hidden="true">
+            <div class="monitor laptop">
+              <div class="screen"></div>
+              <div class="deck"></div>
+            </div>
+            <div class="monitor m-big" id="monitor-big">
+              <div class="screen"><span class="no-signal">No signal</span></div>
+              <div class="neck"></div><div class="base"></div>
+            </div>
+            <div class="monitor m-small" id="monitor-small">
+              <div class="screen"><span class="no-signal">No signal</span></div>
+              <div class="neck"></div><div class="base"></div>
+            </div>
+          </div>
+          <p class="demo-hint">Try the switches.</p>
+        </div>
+      </div>
+
+      <section id="features">
+        <h2>One job, done properly.</h2>
+        <p class="section-lede">Unplug doesn't dim the screen or cover it with a black window. It disconnects the display, so macOS treats it exactly as if you had pulled the cable.</p>
+        <div class="features">
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg></div>
+            <h3>A real disconnect</h3>
+            <p>The monitor gets no signal and goes to sleep. Your windows move to the screens that are still on.</p>
+          </div>
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+            <h3>Never left in the dark</h3>
+            <p>Your built-in screen always stays on and the last active display can't be switched off.</p>
+          </div>
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></div>
+            <h3>Restart brings it back</h3>
+            <p>Changes last for the current session. Log out or restart and every display is back on.</p>
+          </div>
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M3 8h18"/></svg></div>
+            <h3>Lives in the menu bar</h3>
+            <p>No Dock icon, no windows. It launches at login and stays out of your way.</p>
+          </div>
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg></div>
+            <h3>Universal &amp; lightweight</h3>
+            <p>A single small native binary for Apple Silicon and Intel Macs. No background services.</p>
+          </div>
+          <div class="feature">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
+            <h3>Free &amp; open source</h3>
+            <p>MIT licensed, signed and notarized by Apple. Read every line on GitHub.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="install">
+        <h2>Up and running in a minute.</h2>
+        <p class="section-lede">Install with Homebrew or download the app directly.</p>
+        <div class="steps">
+          <div class="step">
+            <h3>Install</h3>
+            <p>Run <code>brew install --cask iltekin/tap/unplug</code> or <a href="https://github.com/iltekin/unplug/releases/latest">download the zip</a> and move Unplug to Applications.</p>
+          </div>
+          <div class="step">
+            <h3>Open it once</h3>
+            <p>Unplug appears in your menu bar and from now on starts automatically when you log in.</p>
+          </div>
+          <div class="step">
+            <h3>Flip a switch</h3>
+            <p>Click the two-displays icon and turn any external display off or back on.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <h2>Questions</h2>
+        <p class="section-lede">Short answers to the things people ask most.</p>
+        <div class="faq">
+          <details>
+            <summary>How is this different from dimming or turning the brightness down?</summary>
+            <p>Dimming keeps the display connected, so windows can still end up on it and the monitor keeps drawing power. Unplug disconnects the display in software: macOS stops sending it a signal and removes it from your desktop until you switch it back on.</p>
+          </details>
+          <details>
+            <summary>Can I turn off my MacBook's built-in screen?</summary>
+            <p>No, on purpose. If the built-in screen were off and you unplugged your external monitor, you'd be left with no screen at all. Unplug only controls external displays.</p>
+          </details>
+          <details>
+            <summary>What happens if I unplug a monitor that Unplug turned off?</summary>
+            <p>It simply disappears from the list. Plug it back in and it shows up again.</p>
+          </details>
+          <details>
+            <summary>Why isn't it on the Mac App Store?</summary>
+            <p>Disconnecting a display relies on a private macOS function (<code>CGSConfigureDisplayEnabled</code>) that App Store apps aren't allowed to use. Unplug is signed with a Developer ID and notarized by Apple instead, so it opens without warnings.</p>
+          </details>
+          <details>
+            <summary>How do I stop it from launching at login?</summary>
+            <p>Remove Unplug in System Settings → General → Login Items. To uninstall completely, run <code>brew uninstall --zap unplug</code> or drag the app to the Trash.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="closing">
+    <img src="assets/icon.png" alt="" width="72" height="72">
+    <h2>Give your desk a quiet moment.</h2>
+    <p>Unplug is free, open source and takes a minute to install.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/iltekin/unplug/releases/latest">Download for Mac</a>
+      <a class="btn" style="background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: none;" href="https://github.com/iltekin/unplug">View on GitHub</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Sezer Iltekin · MIT License</span>
+      <span><a href="https://github.com/iltekin/unplug">Source</a> · <a href="https://github.com/iltekin/unplug/issues">Report an issue</a> · <a href="https://github.com/iltekin/unplug/releases">Releases</a></span>
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll('.switch').forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        var on = sw.getAttribute('aria-checked') !== 'true';
+        sw.setAttribute('aria-checked', String(on));
+        document.getElementById('monitor-' + sw.dataset.monitor).classList.toggle('off', !on);
+      });
+    });
+    document.querySelectorAll('.copy').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var done = function () {
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+        };
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(btn.dataset.copy).then(done, function () {});
+        }
+      });
+    });
+  </script>
+</body>
+</html>
