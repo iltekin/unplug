@@ -116,15 +116,19 @@ final class DisplayManager {
 
     private var lastSafetyState = ""
 
-    /// Gerçekten görüntü veren ekran sayısı. Sistemin ekran listesi fişi çekilen ekranı bir süre
-    /// açık göstermeye devam edebildiği için harici ekranlar ancak kablosu da bağlıysa sayılır.
-    /// Üreticisi olmayan 1x1'lik sahte ekran da sayılmaz.
-    private func activeDisplayCount() -> Int {
+    private func activeDisplayIDs() -> [CGDirectDisplayID] {
         var count: UInt32 = 0
         CGGetActiveDisplayList(0, nil, &count)
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
         CGGetActiveDisplayList(count, &ids, &count)
-        let active = ids.prefix(Int(count))
+        return Array(ids.prefix(Int(count)))
+    }
+
+    /// Gerçekten görüntü veren ekran sayısı. Sistemin ekran listesi fişi çekilen ekranı bir süre
+    /// açık göstermeye devam edebildiği için harici ekranlar ancak kablosu da bağlıysa sayılır.
+    /// Üreticisi olmayan 1x1'lik sahte ekran da sayılmaz.
+    private func activeDisplayCount() -> Int {
+        let active = activeDisplayIDs()
         let hardware = attachedHardware()
         let real = active.filter { id in
             CGDisplayVendorNumber(id) != 0
@@ -148,26 +152,96 @@ final class DisplayManager {
         }
     }
 
+    /// Ekranlar uykudayken (ekran uykusu ya da sistem uykusu) aktif ekran listesi boş döner;
+    /// bu "ekran kalmadı" demek değildir. AppDelegate uyku/uyanma bildirimlerine göre ayarlar.
+    var displaysAsleep = false {
+        didSet {
+            guard displaysAsleep != oldValue else { return }
+            log.notice("Displays \(self.displaysAsleep ? "asleep" : "awake", privacy: .public)")
+            asleepSince = displaysAsleep ? Date() : nil
+            emptySince = nil
+            retryAfter = nil
+            retryDelay = initialRetryDelay
+        }
+    }
+    private var asleepSince: Date?
+
+    /// Uyanırken harici ekran listeye birkaç saniye geç gelir. Hiç ekran yokluğu en az bu kadar
+    /// sürmedikçe bir şey açılmaz.
+    private let emptyGracePeriod: TimeInterval = 5
+    private var emptySince: Date?
+
     /// Örneğin dahili ekran kapalıyken harici ekranın fişi çekilirse hiç ekran kalmaz;
-    /// bu durumda önce dahili ekranı, o da olmazsa listedeki diğer ekranları geri açar.
+    /// bu durumda kapak açıksa önce dahili ekranı, o da olmazsa listedeki diğer ekranları geri açar.
     func restoreIfNoActiveDisplay() {
+        if displaysAsleep {
+            // Uykudayken pahalı kontrolleri ve başarısız açma denemelerini hiç yapma. Uyanma
+            // bildirimi kaçmış olabilir: uykudan bir süre sonra görüntü veren ekran varsa uyanmışız.
+            if let since = asleepSince, Date().timeIntervalSince(since) > 10,
+               activeDisplayIDs().contains(where: { CGDisplayVendorNumber($0) != 0 }) {
+                displaysAsleep = false
+            }
+            return
+        }
+
+        let now = Date()
+        if let until = retryAfter, now < until { return }
+
         guard activeDisplayCount() == 0 else {
+            emptySince = nil
+            retryAfter = nil
+            retryDelay = initialRetryDelay
             rememberBuiltinDisplay()
             return
         }
 
-        if let builtin = defaults.object(forKey: builtinKey) as? Int {
+        guard let since = emptySince else {
+            emptySince = now
+            log.notice("No active display, waiting \(Int(self.emptyGracePeriod), privacy: .public)s before restoring")
+            return
+        }
+        guard now.timeIntervalSince(since) >= emptyGracePeriod else { return }
+        emptySince = nil
+
+        // Kapak kapalıyken dahili ekranı açmak, görünmeyen bir ekranı ana ekran yapar.
+        let lidClosed = isLidClosed()
+        if !lidClosed, let builtin = defaults.object(forKey: builtinKey) as? Int {
             let id = CGDirectDisplayID(builtin)
-            log.notice("No active display left, turning on built-in display \(id): \(self.setEnabled(id, true) ? "ok" : "failed", privacy: .public)")
+            let ok = setEnabled(id, true)
+            log.notice("No active display left, turning on built-in display \(id): \(ok ? "ok" : "failed", privacy: .public)")
+            if !ok { backOff() }
             return
         }
 
         var ids = [CGDirectDisplayID](repeating: 0, count: 32)
         var count: UInt32 = 0
         _ = CGSGetDisplayList(UInt32(ids.count), &ids, &count)
-        let candidates = ids.prefix(Int(count)).filter { CGDisplayIsActive($0) == 0 }
-        log.notice("No active display left and built-in unknown, turning on \(Array(candidates), privacy: .public)")
-        for id in candidates { setEnabled(id, true) }
+        let hardware = attachedHardware()
+        let candidates = ids.prefix(Int(count)).filter { id in
+            CGDisplayIsActive(id) == 0
+                && (!lidClosed || (CGDisplayIsBuiltin(id) == 0 && hardware.contains { $0.matches(id) }))
+        }
+        guard !candidates.isEmpty else {
+            log.notice("No active display left (lid \(lidClosed ? "closed" : "open", privacy: .public)), nothing to turn on")
+            backOff()
+            return
+        }
+        log.notice("No active display left (lid \(lidClosed ? "closed" : "open", privacy: .public)), turning on \(Array(candidates), privacy: .public)")
+        let enabled = candidates.filter { setEnabled($0, true) }
+        if enabled.isEmpty { backOff() }
+    }
+
+    /// Açma denemesi başarısızsa (örneğin uyku bildirimi kaçtığı için ekranlar uykudaysa) her
+    /// döngüde yeniden denemek yerine giderek seyrekleşen aralıklarla dene.
+    private let initialRetryDelay: TimeInterval = 30
+    private let maxRetryDelay: TimeInterval = 300
+    private lazy var retryDelay = initialRetryDelay
+    private var retryAfter: Date?
+
+    private func backOff() {
+        log.notice("Restore did not succeed, retrying in \(Int(self.retryDelay), privacy: .public)s")
+        retryAfter = Date().addingTimeInterval(retryDelay)
+        retryDelay = min(retryDelay * 2, maxRetryDelay)
     }
 
     /// Dahili ekran artık menüden kapatılamıyor; eski bir sürümle kapatılmış kaldıysa geri aç.
@@ -308,13 +382,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard !flags.contains(.beginConfigurationFlag), let userInfo else { return }
             Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue().scheduleSafetyCheck()
         }, Unmanaged.passUnretained(self).toOpaque())
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self, selector: #selector(scheduleSafetyCheck),
-            name: NSWorkspace.didWakeNotification, object: nil)
+        // Uykudayken aktif ekran listesi boştur; bu sürede kontrol yapılmaz.
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.willSleepNotification] {
+            workspace.addObserver(self, selector: #selector(displaysDidSleep), name: name, object: nil)
+        }
+        workspace.addObserver(self, selector: #selector(displaysDidWake),
+                              name: NSWorkspace.screensDidWakeNotification, object: nil)
         // Değişiklik bildirimi kaçarsa kullanıcı ekransız kalmasın diye ayrıca düzenli kontrol.
-        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             self?.manager.restoreIfNoActiveDisplay()
         }
+        timer.tolerance = 1
         // Penceresiz arka plan uygulaması App Nap'e girip bu kontrolü geciktirmesin.
         appNapBlocker = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep],
@@ -344,6 +423,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var safetyCheck: DispatchWorkItem?
+
+    @objc private func displaysDidSleep() {
+        safetyCheck?.cancel()
+        manager.displaysAsleep = true
+    }
+
+    @objc private func displaysDidWake() {
+        manager.displaysAsleep = false
+        scheduleSafetyCheck()
+    }
 
     /// Değişiklikler art arda geldiği için sistem durulunca tek sefer kontrol eder.
     @objc func scheduleSafetyCheck() {
